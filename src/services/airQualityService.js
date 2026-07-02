@@ -87,6 +87,23 @@ export async function fetchLocalGrid(lat, lon, topN = 6) {
   return points;
 }
 
+function computeConfidence(hourly, times) {
+  const POLLUTANT_FIELDS = ['pm2_5', 'pm10', 'carbon_monoxide', 'nitrogen_dioxide', 'ozone', 'us_aqi'];
+
+  const validFields = POLLUTANT_FIELDS.filter((f) => {
+    const arr = hourly[f];
+    return arr && arr.length > 0 && arr.some((v) => v != null && !isNaN(v));
+  }).length;
+
+  const dataCompleteness = Math.round((validFields / POLLUTANT_FIELDS.length) * 100);
+  const sampleRatio = Math.min(1, times.length / 24);
+  const score = dataCompleteness * 0.5 + sampleRatio * 100 * 0.5;
+
+  const confidenceScore = score >= 80 ? 'High' : score >= 50 ? 'Medium' : 'Low';
+
+  return { confidenceScore, dataCompleteness };
+}
+
 export async function fetchAirQualityByCoords(lat, lon) {
   if (!isValidCoord(lat, lon)) throw new Error('Invalid coordinates provided.');
   const url = `${BASE_URL}?latitude=${lat}&longitude=${lon}&hourly=pm2_5,pm10,carbon_monoxide,nitrogen_dioxide,ozone,us_aqi&timezone=auto&forecast_days=3`;
@@ -119,11 +136,15 @@ export async function fetchAirQualityByCoords(lat, lon) {
   }));
 
   const nearbyPoints = await fetchLocalGrid(lat, lon);
+  const { confidenceScore, dataCompleteness } = computeConfidence(hourly, times);
 
   return {
     current,
     trend,
     nearbyPoints
+    nearbyPoints: buildNearbyPoints(lat, lon, current.us_aqi),
+    confidenceScore,
+    dataCompleteness
   };
 }
 

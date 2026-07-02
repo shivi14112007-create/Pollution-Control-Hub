@@ -7,6 +7,7 @@ import HealthAdvisory from './components/HealthAdvisory';
 import LocationMap from './components/LocationMap';
 import QuizSection from './components/QuizSection';
 import SolutionsAwareness from './components/SolutionsAwareness';
+import ScenarioSimulator from './components/ScenarioSimulator';
 import { CITY_COORDINATES } from './constants/cities';
 import {
   estimateWeeklyMonthlyAverages,
@@ -116,11 +117,14 @@ export default function App() {
   const [trend, setTrend] = useState([]);
   const [nearbyPoints, setNearbyPoints] = useState([]);
   const [cityComparisons, setCityComparisons] = useState([]);
+  const [confidenceScore, setConfidenceScore] = useState('High');
+  const [dataCompleteness, setDataCompleteness] = useState(100);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('');
   const [refreshCountdown, setRefreshCountdown] = useState(AUTO_REFRESH_SECONDS);
   const [error, setError] = useState('');
+  const [locationNotice, setLocationNotice] = useState('');
   const [theme, setTheme] = useState('light');
   const [timeRange, setTimeRange] = useState(24);
 
@@ -142,6 +146,7 @@ export default function App() {
 
   useEffect(() => {
     if (selectedCity !== 'auto') {
+      setLocationNotice('');
       const city = CITY_COORDINATES.find((item) => item.name === selectedCity);
       if (city) {
         setPosition({
@@ -153,10 +158,17 @@ export default function App() {
       return;
     }
 
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      setLocationNotice(
+        "Your browser can't detect location, so we're showing Delhi. Pick a city from the dropdown if that's not right."
+      );
+      setPosition(DEFAULT_POSITION);
+      return;
+    }
 
     navigator.geolocation.getCurrentPosition(
       (coords) => {
+        setLocationNotice('');
         setPosition({
           lat: Number(coords.coords.latitude.toFixed(4)),
           lon: Number(coords.coords.longitude.toFixed(4)),
@@ -164,6 +176,10 @@ export default function App() {
         });
       },
       () => {
+        setLocationNotice(
+          "Couldn't detect your location — showing Delhi for now. Pick a city manually from the dropdown if you need different data."
+        );
+        setPosition(DEFAULT_POSITION);
       },
       { timeout: 8000 }
     );
@@ -189,6 +205,8 @@ export default function App() {
         setCurrent(aqi.current);
         setTrend(aqi.trend);
         setNearbyPoints(aqi.nearbyPoints);
+        setConfidenceScore(aqi.confidenceScore);
+        setDataCompleteness(aqi.dataCompleteness);
         setCityComparisons(cities);
         setLastUpdated(new Date().toISOString());
         setRefreshCountdown(AUTO_REFRESH_SECONDS);
@@ -240,6 +258,8 @@ export default function App() {
       setCurrent(aqi.current);
       setTrend(aqi.trend);
       setNearbyPoints(aqi.nearbyPoints);
+      setConfidenceScore(aqi.confidenceScore);
+      setDataCompleteness(aqi.dataCompleteness);
       setCityComparisons(cities);
       setLastUpdated(new Date().toISOString());
       setRefreshCountdown(AUTO_REFRESH_SECONDS);
@@ -275,6 +295,15 @@ export default function App() {
         />
       )}
 
+      {locationNotice && selectedCity === 'auto' && (
+        <div className="location-notice" role="status">
+          <p>{locationNotice}</p>
+          <button type="button" onClick={() => setLocationNotice('')}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {error && <p className="error-banner">{error}</p>}
 
       {activeSection === 'home' ? (
@@ -288,12 +317,15 @@ export default function App() {
             onTimeRangeChange={setTimeRange}
             lastUpdated={lastUpdated}
             isRefreshing={isRefreshing}
+            confidenceScore={confidenceScore}
+            dataCompleteness={dataCompleteness}
           />
-          <LocationMap center={position} nearbyPoints={nearbyPoints} />
-          <AlertsPanel cityName={position.cityName} current={current} />
+          <LocationMap center={position} nearbyPoints={nearbyPoints} confidenceScore={confidenceScore} />
+          <AlertsPanel cityName={position.cityName} current={current} confidenceScore={confidenceScore} dataCompleteness={dataCompleteness} />
           <HealthAdvisory />
           <SolutionsAwareness />
           <AnalyticsInsights analytics={analytics} trend={trend} timeRange={timeRange} />
+          <ScenarioSimulator current={current} />
           <CommunityHub />
         </div>
       ) : (

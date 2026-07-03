@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'pollution-community-reports';
+const VOTE_THRESHOLD = 5; 
+const X_DAYS = 7; 
 
 function readReports() {
   try {
@@ -12,16 +14,14 @@ function readReports() {
 }
 
 export default function CommunityHub() {
-  const [reports, setReports] = useState([]);
+  const [reports, setReports] = useState(() => readReports());
+  const [filter, setFilter] = useState('All'); 
   const [form, setForm] = useState({
     title: '',
     description: '',
     image: ''
   });
-
-  useEffect(() => {
-    setReports(readReports());
-  }, []);
+  const [fileInputKey, setFileInputKey] = useState(Date.now());
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
@@ -37,11 +37,15 @@ export default function CommunityHub() {
       description: form.description.trim(),
       image: form.image,
       votes: 0,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      status:"Pending",
+      verifiedAt: "",
+      moderationNotes:"",
     };
 
     setReports((prev) => [newReport, ...prev]);
     setForm({ title: '', description: '', image: '' });
+    setFileInputKey(Date.now());
   };
 
   const uploadImage = (event) => {
@@ -57,11 +61,39 @@ export default function CommunityHub() {
 
   const vote = (id) => {
     setReports((prev) =>
-      prev.map((report) =>
-        report.id === id ? { ...report, votes: report.votes + 1 } : report
-      )
+      prev.map((report) => {
+        if (report.id !== id) return report;
+        
+        const nextVotes = report.votes + 1;
+        const createdDate = new Date(report.createdAt);
+        const ageInDays = (new Date() - createdDate) / (1000 * 60 * 60 * 24);
+        
+        let updatedStatus = report.status;
+        let verifiedAtTimestamp = report.verifiedAt;
+        let notes = report.moderationNotes;
+
+        if (nextVotes >= VOTE_THRESHOLD && ageInDays <= X_DAYS && report.status === "Pending") {
+          updatedStatus = "Verified (community)";
+          verifiedAtTimestamp = new Date().toISOString();
+          notes = "Automatically verified via community consensus upvotes.";
+        }
+
+        return { 
+          ...report, 
+          votes: nextVotes, 
+          status: updatedStatus,
+          verifiedAt: verifiedAtTimestamp,
+          moderationNotes: notes
+        };
+      })
     );
   };
+
+  const filteredReports = reports.filter((report) => {
+    if (filter === 'All') return true;
+    if (filter === 'Verified') return report.status.startsWith('Verified');
+    return report.status === filter;
+  });
 
   return (
     <section className="panel">
@@ -82,22 +114,54 @@ export default function CommunityHub() {
           placeholder="Describe location and issue details"
           onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
         />
-        <input type="file" accept="image/*" onChange={uploadImage} />
+        <input key={fileInputKey} type="file" accept="image/*" onChange={uploadImage} />
         <button type="submit">Submit Report</button>
       </form>
 
+      <div className="filter-tabs" style={{ display: 'flex', gap: '8px', margin: '15px 0' }}>
+        {['All', 'Pending', 'Verified', 'Addressed'].map((statusOption) => (
+          <button
+            key={statusOption}
+            type="button"
+            onClick={() => setFilter(statusOption)}
+            style={{
+              padding: '6px 12px',
+              cursor: 'pointer',
+              fontWeight: filter === statusOption ? 'bold' : 'normal'
+            }}
+          >
+            {statusOption}
+          </button>
+        ))}
+      </div>
+
       <div className="report-feed">
-        {reports.length === 0 ? (
+        {filteredReports.length === 0 ? (
           <p>No reports yet. Be the first to raise an issue.</p>
         ) : (
-          reports.map((report) => (
+          filteredReports.map((report) => (
             <article className="report-card" key={report.id}>
               <div className="report-head">
-                <h3>{report.title}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <h3>{report.title}</h3>
+                  <span className="status-badge" style={{ fontSize: '0.8rem', padding: '2px 6px', border: '1px solid #ccc', borderRadius: '4px' }}>
+                    {report.status}
+                  </span>
+                </div>
                 <button onClick={() => vote(report.id)} type="button">Upvote ({report.votes})</button>
               </div>
               <p>{report.description}</p>
               {report.image && <img src={report.image} alt={report.title} />}
+
+              <div className="timeline-workflow" style={{ marginTop: '12px', fontSize: '0.8rem', color: '#666' }}>
+                <span>Created</span>
+                <span style={{ color: report.status.startsWith('Verified') || report.status === 'Addressed' ? '#000' : '#ccc' }}>
+                  {" → "}Community verified
+                </span>
+                <span style={{ color: report.status === 'Addressed' ? '#000' : '#ccc' }}>
+                  {" → "}Addressed
+                </span>
+              </div>
             </article>
           ))
         )}

@@ -10,7 +10,8 @@ function buildWarnings(current) {
   return warnings;
 }
 
-export default function AlertsPanel({ cityName, current }) {
+export default function AlertsPanel({ cityName, current, confidenceScore , exposureEstimate}) {
+
   const warnings = useMemo(() => buildWarnings(current), [current]);
 
   useEffect(() => {
@@ -41,12 +42,31 @@ export default function AlertsPanel({ cityName, current }) {
         <p>Health warnings based on safe pollutant thresholds</p>
       </div>
 
+      {exposureEstimate && (
+        <div className="exposure-card">
+          <h3>Exposure Timer</h3>
+
+         <p className="exposure-message">
+            {exposureEstimate.message}
+          </p>
+
+          <small className="exposure-note">
+            Estimated from recent AQI trends.
+          </small>
+        </div>
+      )}
+
       {warnings.length ? (
-        <ul className="warnings">
-          {warnings.map((warning) => (
-            <li key={warning}>{warning}</li>
-          ))}
-        </ul>
+        <>
+          {confidenceScore === 'Low' && (
+            <p className="low-confidence-note">Warnings based on low-confidence data</p>
+          )}
+          <ul className="warnings">
+            {warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </>
       ) : (
         <p className="safe-note">Air quality is within safer limits right now. Keep monitoring for changes.</p>
       )}

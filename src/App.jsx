@@ -11,7 +11,6 @@ import SolutionsAwareness from './components/SolutionsAwareness';
 import ScenarioSimulator from './components/ScenarioSimulator';
 import { CITY_COORDINATES } from './constants/cities';
 import {
-  estimateWeeklyMonthlyAverages,
   fetchAirQualityByCoords,
   fetchCityComparisons,
   estimateExposureTime
@@ -121,6 +120,7 @@ export default function App() {
   const [cityComparisons, setCityComparisons] = useState([]);
   const [confidenceScore, setConfidenceScore] = useState('High');
   const [dataCompleteness, setDataCompleteness] = useState(100);
+  const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('');
@@ -209,6 +209,7 @@ export default function App() {
         setNearbyPoints(aqi.nearbyPoints);
         setConfidenceScore(aqi.confidenceScore);
         setDataCompleteness(aqi.dataCompleteness);
+        setAnalytics(aqi.analytics);
         setCityComparisons(cities);
         setLastUpdated(new Date().toISOString());
         setRefreshCountdown(AUTO_REFRESH_SECONDS);
@@ -242,12 +243,11 @@ export default function App() {
     };
   }, [position.lat, position.lon]);
 
-  const analytics = useMemo(() => estimateWeeklyMonthlyAverages(trend), [trend]);
+  // Analytics is now fetched from the backend
   const exposureEstimate = useMemo(
     () => estimateExposureTime(trend, current?.us_aqi), 
     [trend, current]
   );
-
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -267,6 +267,7 @@ export default function App() {
       setNearbyPoints(aqi.nearbyPoints);
       setConfidenceScore(aqi.confidenceScore);
       setDataCompleteness(aqi.dataCompleteness);
+      setAnalytics(aqi.analytics);
       setCityComparisons(cities);
       setLastUpdated(new Date().toISOString());
       setRefreshCountdown(AUTO_REFRESH_SECONDS);
@@ -277,7 +278,7 @@ export default function App() {
     }
   };
 
-  if (loading || !current) {
+  if (loading || !current || !analytics) {
     return (
       <main className="app-shell loading-state">
         <SectionNav activeSection={activeSection} onSectionChange={setActiveSection} theme={theme} onToggleTheme={toggleTheme} />

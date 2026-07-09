@@ -118,6 +118,8 @@ function computeConfidence(hourly, times) {
 
 export async function fetchAirQualityByCoords(lat, lon, signal, skipGrid = false) {
 
+  if (!navigator.onLine) { console.log("OFFLINE CHECK HIT");
+    throw new Error("You're offline. Please reconnect to view air quality data." );}
   if (!isValidCoord(lat, lon)) throw new Error('Invalid coordinates provided.');
 
   const today = new Date();

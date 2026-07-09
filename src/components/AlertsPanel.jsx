@@ -12,7 +12,7 @@ function buildWarnings(current) {
 }
 
 export default function AlertsPanel({ cityName, current, confidenceScore , exposureEstimate}) {
-
+  if (!current) {return null;}
   const warnings = useMemo(() => buildWarnings(current), [current]);
   const lastNotified = useRef('');
 

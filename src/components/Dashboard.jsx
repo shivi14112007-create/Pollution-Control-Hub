@@ -60,6 +60,9 @@ export default function Dashboard({
   confidenceScore,
   dataCompleteness
 }) {
+  if (!current) {
+    return null;
+  }
   const aqiBand = getAQIBand(current.us_aqi);
   const chartData = trend.slice(-timeRange).map((item) => ({
     ...item,

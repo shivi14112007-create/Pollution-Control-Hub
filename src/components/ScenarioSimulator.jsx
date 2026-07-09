@@ -55,6 +55,7 @@ const PRESETS = [
 /* ─── Component ───────────────────────────────────────────────────────────── */
 
 export default function ScenarioSimulator({ current }) {
+  if (!current) { return null;}
   const [pm25Reduction, setPm25Reduction] = useState(0);
   const [no2Reduction, setNo2Reduction] = useState(0);
   const [o3Reduction, setO3Reduction] = useState(0);
@@ -129,13 +130,20 @@ export default function ScenarioSimulator({ current }) {
   const reducedNo2 = current.nitrogen_dioxide * (1 - no2Reduction / 100);
   const reducedO3 = current.ozone * (1 - o3Reduction / 100);
 
-  const estimatedAqi = estimateAQI(
-    Math.round(reducedPm25),
-    current.pm10,
-    Math.round(reducedNo2),
-    Math.round(reducedO3),
-    current.carbon_monoxide
-  );
+  // Fix for Issue #113: if no reduction has been applied (all sliders at 0%),
+  // Estimated AQI must equal Current AQI exactly instead of being recalculated
+  // via a different formula that can drift from the API-provided value.
+  const hasReduction = pm25Reduction > 0 || no2Reduction > 0 || o3Reduction > 0;
+
+  const estimatedAqi = hasReduction
+    ? estimateAQI(
+        Math.round(reducedPm25),
+        current.pm10,
+        Math.round(reducedNo2),
+        Math.round(reducedO3),
+        current.carbon_monoxide
+      )
+    : current.us_aqi;
 
   const currentBand = getAQIBand(current.us_aqi);
   const estimatedBand = getAQIBand(estimatedAqi);
@@ -150,13 +158,19 @@ export default function ScenarioSimulator({ current }) {
     const rPm25 = data.pm2_5 * (1 - pm25Reduction / 100);
     const rNo2 = data.nitrogen_dioxide * (1 - no2Reduction / 100);
     const rO3 = data.ozone * (1 - o3Reduction / 100);
-    const simAqi = estimateAQI(
-      Math.round(rPm25),
-      data.pm10,
-      Math.round(rNo2),
-      Math.round(rO3),
-      data.carbon_monoxide
-    );
+
+    const cityHasReduction = pm25Reduction > 0 || no2Reduction > 0 || o3Reduction > 0;
+
+    const simAqi = cityHasReduction
+      ? estimateAQI(
+          Math.round(rPm25),
+          data.pm10,
+          Math.round(rNo2),
+          Math.round(rO3),
+          data.carbon_monoxide
+        )
+      : data.us_aqi;
+
     const imp =
       data.us_aqi > 0
         ? Math.round(((data.us_aqi - simAqi) / data.us_aqi) * 100)

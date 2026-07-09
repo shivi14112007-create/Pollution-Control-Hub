@@ -9,6 +9,7 @@ import LocationMap from './components/LocationMap';
 import QuizSection from './components/QuizSection';
 import SolutionsAwareness from './components/SolutionsAwareness';
 import ScenarioSimulator from './components/ScenarioSimulator';
+import AqiMissionGame from './components/AqiMissionGame';
 import HistoricalAnalysis from './components/HistoricalAnalysis';
 import LocationSearch from './components/LocationSearch';
 import { CITY_COORDINATES } from './constants/cities';
@@ -92,6 +93,7 @@ function SectionNav({ activeSection, onSectionChange, theme, onToggleTheme }) {
   const sections = [
     { id: 'home', label: 'Home' },
     { id: 'quiz', label: 'Quiz' },
+    { id: 'game', label: 'Game' },
     { id: 'community', label: 'Community' },
     { id: 'history', label: 'History' }
   ];
@@ -374,7 +376,7 @@ export default function App() {
 
       {error && <p className="error-banner">{error}</p>}
 
-      {activeSection === 'home' ? (
+      {activeSection === 'home' && (
         <div className="content-grid">
           <Dashboard
             cityName={position.cityName}
@@ -395,17 +397,29 @@ export default function App() {
           <AnalyticsInsights analytics={analytics} trend={trend} timeRange={timeRange} />
           <ScenarioSimulator current={current} />
         </div>
-      ) : activeSection === 'community' ? (
+      )}
+
+      {activeSection === 'community' && (
         <div className="content-grid community-layout">
           <CommunityHub />
         </div>
-      ) : activeSection === 'history' ? (
+      )}
+
+      {activeSection === 'history' && (
         <div className="content-grid history-layout">
           <HistoricalAnalysis position={position} />
         </div>
-      ) : (
+      )}
+
+      {activeSection === 'quiz' && (
         <div className="content-grid quiz-layout">
           <QuizSection />
+        </div>
+      )}
+
+      {activeSection === 'game' && (
+        <div className="content-grid game-layout">
+          <AqiMissionGame current={current} />
         </div>
       )}
 

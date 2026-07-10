@@ -14,6 +14,7 @@ export default function LocationSearch({ onLocationSelected, initialCityName }) 
   
   const wrapperRef = useRef(null);
   const debounceTimerRef = useRef(null);
+  const latestQueryRef = useRef('');   // ← new
 
   useEffect(() => {
     // Load recent searches on mount
@@ -64,30 +65,35 @@ export default function LocationSearch({ onLocationSelected, initialCityName }) 
     onLocationSelected(location);
   };
 
-  const handleInputChange = (e) => {
-    const val = e.target.value;
-    setQuery(val);
-    setActiveIndex(-1);
-    
-    if (val.trim() === '') {
-      setSuggestions([]);
-      setIsOpen(true); // Will show recent searches
-      return;
-    }
+const handleInputChange = (e) => {
+  const val = e.target.value;
+  setQuery(val);
+  setActiveIndex(-1);
 
-    setIsLoading(true);
+  if (val.trim() === '') {
+    setSuggestions([]);
     setIsOpen(true);
+    return;
+  }
 
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
+  setIsLoading(true);
+  setIsOpen(true);
 
-    debounceTimerRef.current = setTimeout(async () => {
-      const results = await searchLocations(val);
-      setSuggestions(results);
-      setIsLoading(false);
-    }, 500);
-  };
+  if (debounceTimerRef.current) {
+    clearTimeout(debounceTimerRef.current);
+  }
+
+  debounceTimerRef.current = setTimeout(async () => {
+    latestQueryRef.current = val;          // ← mark this as the latest requested query
+    const results = await searchLocations(val);
+
+    // Ignore this result if a newer search has started since this one fired
+    if (latestQueryRef.current !== val) return;   // ← the key guard
+
+    setSuggestions(results);
+    setIsLoading(false);
+  }, 500);
+};
 
   const handleKeyDown = (e) => {
     const items = query.trim() === '' ? recentSearches : suggestions;

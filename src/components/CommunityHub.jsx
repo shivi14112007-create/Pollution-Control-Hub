@@ -243,36 +243,13 @@ export default function CommunityHub() {
         <button type="submit">Submit Report</button>
       </form>
 
-   <div
-  className="filter-tabs"
-  style={{
-    display: "flex",
-    gap: "12px",
-    margin: "20px 0",
-    flexWrap: "wrap",
-  }}
->
+   <div className="filter-tabs">
   {["All", "Pending", "Verified", "Addressed"].map((statusOption) => (
     <button
       key={statusOption}
       type="button"
       onClick={() => setFilter(statusOption)}
-      style={{
-        padding: "8px 15px",
-        borderRadius: "10px",
-        border: filter === statusOption ? "2px solid #0077b6" : "2px solid #dcdcdc",
-        backgroundColor:
-          filter === statusOption ? "#0077b6" : "#ffffff",
-        color: filter === statusOption ? "#ffffff" : "#333333",
-        cursor: "pointer",
-        fontWeight: filter === statusOption ? "600" : "500",
-        fontSize: "15px",
-        transition: "all 0.3s ease",
-        boxShadow:
-          filter === statusOption
-            ? "0 4px 12px rgba(0,119,182,0.3)"
-            : "0 2px 6px rgba(0,0,0,0.08)",
-      }}
+      className={filter === statusOption ? "active" : ""}
     >
       {statusOption}
     </button>

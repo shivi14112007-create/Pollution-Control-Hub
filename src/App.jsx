@@ -16,6 +16,7 @@ import {
   fetchCityComparisons,
   estimateExposureTime
 } from './services/airQualityService';
+import { eventBus } from './core/events';
 
 const DEFAULT_POSITION = {
   lat: 28.6139,
@@ -45,7 +46,6 @@ function Hero({ cityName }) {
 function AppControls({
   selectedCity,
   onCityChange,
-  onRefresh,
   isRefreshing,
   refreshCountdown,
   lastUpdated
@@ -74,7 +74,7 @@ function AppControls({
       </div>
 
       <div className="control-group actions">
-        <button type="button" onClick={onRefresh} disabled={isRefreshing}>Refresh Now</button>
+        <button type="button" onClick={() => eventBus.emit('FORCE_REFRESH')} disabled={isRefreshing}>Refresh Now</button>
         <small>
           Last updated: {lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : 'Waiting...'}
         </small>
@@ -83,7 +83,7 @@ function AppControls({
   );
 }
 
-function SectionNav({ activeSection, onSectionChange, theme, onToggleTheme }) {
+function SectionNav({ activeSection, onSectionChange, theme }) {
   const sections = [
     { id: 'home', label: 'Home' },
     { id: 'quiz', label: 'Quiz' }
@@ -111,7 +111,7 @@ function SectionNav({ activeSection, onSectionChange, theme, onToggleTheme }) {
       <button
         type="button"
         className={`theme-toggle-inline ${theme === "dark" ? "dark" : ""}`}
-        onClick={onToggleTheme}
+        onClick={() => eventBus.emit('TOGGLE_THEME')}
         aria-label="Toggle Theme"
       >
         <span className="toggle-thumb">
@@ -319,10 +319,20 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    eventBus.on('TOGGLE_THEME', toggleTheme);
+    eventBus.on('FORCE_REFRESH', refreshNow);
+
+    return () => {
+      eventBus.off('TOGGLE_THEME', toggleTheme);
+      eventBus.off('FORCE_REFRESH', refreshNow);
+    };
+  }, [toggleTheme, refreshNow]);
+
   if (loading || !current) {
     return (
       <main className="app-shell loading-state">
-        <SectionNav activeSection={activeSection} onSectionChange={setActiveSection} theme={theme} onToggleTheme={toggleTheme} />
+        <SectionNav activeSection={activeSection} onSectionChange={setActiveSection} theme={theme} />
         <h1>Preparing live pollution intelligence...</h1>
       </main>
     );
@@ -331,7 +341,7 @@ export default function App() {
   return (
     <main className="app-shell">
       {/* 1. Structural fix: Renders the navigation element at the very top */}
-      <SectionNav activeSection={activeSection} onSectionChange={setActiveSection} theme={theme} onToggleTheme={toggleTheme} />
+      <SectionNav activeSection={activeSection} onSectionChange={setActiveSection} theme={theme} />
       
       <Hero cityName={position.cityName} />
 
@@ -339,7 +349,6 @@ export default function App() {
         <AppControls
           selectedCity={selectedCity}
           onCityChange={setSelectedCity}
-          onRefresh={refreshNow}
           isRefreshing={isRefreshing}
           refreshCountdown={refreshCountdown}
           lastUpdated={lastUpdated}

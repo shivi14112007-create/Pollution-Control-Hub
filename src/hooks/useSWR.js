@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { cacheStore } from "../utils/cacheStore";
 
+/**
+ * Custom hook for Stale-While-Revalidate data fetching.
+ * Handles automatic caching, request deduplication, and graceful error tracking.
+ * * @param {string} key - Unique identifier/URL for the API request.
+ * @param {Function} fetcher - Asynchronous function tasked with pulling data.
+ * @param {Object} options - Configuration adjustments like Cache Time to Live (ttl).
+ */
 export function useSWR(key, fetcher, { ttl = 5 * 60 * 1000 } = {}) {
   // Initial state based on synchronous cache read
   const getInitialData = () => (key ? cacheStore.get(key)?.data : undefined);
@@ -12,17 +19,21 @@ export function useSWR(key, fetcher, { ttl = 5 * 60 * 1000 } = {}) {
   );
   const [currentKey, setCurrentKey] = useState(key);
 
+  // Keep fetcher mutable using a Ref to ensure we always call the latest instance
+  // without triggering structural hook updates.
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
-  // Handle key changes synchronously to avoid flash of old data
+  // Handle key changes synchronously to avoid flash of old cached data
   const isKeyChanged = key !== currentKey;
-  
-  // Derive the display values immediately so we don't show old data
-  // while React is processing the state update
+
+  // Derive the display values immediately so we don't show stale information
+  // while React is actively processing background state updates
   const displayData = isKeyChanged ? getInitialData() : data;
   const displayError = isKeyChanged ? null : error;
-  const displayIsValidating = isKeyChanged ? (!getInitialData() && !!key) : isValidating;
+  const displayIsValidating = isKeyChanged
+    ? !getInitialData() && !!key
+    : isValidating;
 
   if (isKeyChanged) {
     setCurrentKey(key);
@@ -31,6 +42,7 @@ export function useSWR(key, fetcher, { ttl = 5 * 60 * 1000 } = {}) {
     setIsValidating(!getInitialData() && !!key);
   }
 
+  // Asynchronous revalidation executor
   const revalidate = useCallback(
     async (force = false) => {
       if (!key) return;
@@ -39,9 +51,8 @@ export function useSWR(key, fetcher, { ttl = 5 * 60 * 1000 } = {}) {
       if (!force && !isStale) {
         const cached = cacheStore.get(key);
         if (cached) {
-          // FIX: Use a functional state update to compare with the latest state (prevData).
-          // This allows us to remove 'data' from the useCallback dependency array,
-          // successfully breaking the infinite re-rendering loop when geolocation fails.
+          // Use functional state updates to completely eliminate the need to track
+          // 'data' inside this array, breaking part of the infinite circular loops.
           setData((prevData) =>
             cached.data !== prevData ? cached.data : prevData,
           );
@@ -55,30 +66,44 @@ export function useSWR(key, fetcher, { ttl = 5 * 60 * 1000 } = {}) {
           fetcherRef.current(),
         );
         setData(newData);
-        setError(null);
+        setError(null); // Clear errors instantly upon a successful data fetch
       } catch (err) {
         if (err.name !== "AbortError") {
+          // Captures geolocation block or backend fetch exceptions
+          // allowing the UI to adapt dynamically.
           setError(err);
         }
-     } finally {
-      setIsValidating(false);
-    }
-  },
-  // 'data' is deliberately excluded here to prevent a circular dependency cycle
-  [key, ttl, displayData],
-);
+      } finally {
+        setIsValidating(false);
+      }
+    },
+    // Extracted 'displayData' completely from here to prevent the function
+    // memory reference from changing dynamically on every UI update.
+    [key, ttl],
+  );
 
-  // Revalidate on mount or key change
+  // FIX: Storing 'revalidate' inside a persistent Ref pointer ensures the
+  // downstream useEffect can safely target execution without triggering a 42-count cycle.
+  const revalidateRef = useRef(revalidate);
+  revalidateRef.current = revalidate;
+
+  // Revalidate safely on initial component mount or when the unique identifier key changes.
+  // When a user successfully enables location, the key changes, and this fires cleanly!
   useEffect(() => {
-    revalidate();
-  }, [revalidate]);
+    revalidateRef.current();
+  }, [key]);
 
-  // Force revalidation (e.g. for refresh button)
+  // Force revalidation runner (ideal for manual 'Refresh' buttons)
   const mutate = useCallback(async () => {
     if (!key) return;
     cacheStore.invalidate(key);
     await revalidate(true);
-  }, [key, revalidate, displayData]);
+  }, [key, revalidate]);
 
-  return { data: displayData, error: displayError, isValidating: displayIsValidating, mutate };
+  return {
+    data: displayData,
+    error: displayError,
+    isValidating: displayIsValidating,
+    mutate,
+  };
 }

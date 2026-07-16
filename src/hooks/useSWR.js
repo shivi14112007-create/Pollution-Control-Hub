@@ -16,12 +16,19 @@ export function useSWR(key, fetcher, { ttl = 5 * 60 * 1000 } = {}) {
   fetcherRef.current = fetcher;
 
   // Handle key changes synchronously to avoid flash of old data
-  if (key !== currentKey) {
+  const isKeyChanged = key !== currentKey;
+  
+  // Derive the display values immediately so we don't show old data
+  // while React is processing the state update
+  const displayData = isKeyChanged ? getInitialData() : data;
+  const displayError = isKeyChanged ? null : error;
+  const displayIsValidating = isKeyChanged ? (!getInitialData() && !!key) : isValidating;
+
+  if (isKeyChanged) {
     setCurrentKey(key);
-    const cachedData = getInitialData();
-    setData(cachedData);
+    setData(getInitialData());
     setError(null);
-    setIsValidating(!cachedData && !!key);
+    setIsValidating(!getInitialData() && !!key);
   }
 
   const revalidate = useCallback(
@@ -73,5 +80,5 @@ export function useSWR(key, fetcher, { ttl = 5 * 60 * 1000 } = {}) {
     await revalidate(true);
   }, [key, revalidate, displayData]);
 
-  return { data, error, isValidating, mutate };
+  return { data: displayData, error: displayError, isValidating: displayIsValidating, mutate };
 }

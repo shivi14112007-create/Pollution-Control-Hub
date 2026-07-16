@@ -53,13 +53,13 @@ export function useSWR(key, fetcher, { ttl = 5 * 60 * 1000 } = {}) {
         if (err.name !== "AbortError") {
           setError(err);
         }
-      } finally {
-        setIsValidating(false);
-      }
-    },
-    // 'data' is deliberately excluded here to prevent a circular dependency cycle
-    [key, ttl],
-  );
+     } finally {
+      setIsValidating(false);
+    }
+  },
+  // 'data' is deliberately excluded here to prevent a circular dependency cycle
+  [key, ttl, displayData],
+);
 
   // Revalidate on mount or key change
   useEffect(() => {

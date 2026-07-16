@@ -16,6 +16,7 @@ import LocationSearch from './components/LocationSearch';
 import SkeletonDashboard from './components/SkeletonDashboard';
 import { CITY_COORDINATES } from './constants/cities';
 import HotspotScoutGame from "./components/HotspotScoutGame";
+import ErrorBoundary from "./components/ErrorBoundary";
 import {
   estimateWeeklyMonthlyAverages,
   fetchAirQualityByCoords,
@@ -392,32 +393,28 @@ export default function App() {
     };
   }, []);
 
-  if (loading && !error) {
-    return (
-      <main className="app-shell">
-        <SectionNav activeSection={activeSection} onSectionChange={setActiveSection} theme={theme} onToggleTheme={toggleTheme} />
-
-        <div className="loading-spinner" aria-hidden="true"></div>
-        <h1 className="loading-title text-3xl">
-          Preparing live pollution intelligence...
-        </h1>
-
-        <Hero cityName={position.cityName} />
-        {activeSection === 'home' && (
-          <div className="content-grid" style={{ marginTop: 'var(--sp-4)' }}>
-            <SkeletonDashboard />
-          </div>
-        )}
-      </main>
-    );
-  }
-
   return (
     <main className="app-shell">
       {/* 1. Structural fix: Renders the navigation element at the very top */}
       <SectionNav activeSection={activeSection} onSectionChange={setActiveSection} theme={theme} onToggleTheme={toggleTheme} />
 
-      <Hero cityName={position.cityName} />
+      {loading && !error ? (
+        <>
+          <div className="loading-spinner" aria-hidden="true"></div>
+          <h1 className="loading-title text-3xl">
+            Preparing live pollution intelligence...
+          </h1>
+
+          <Hero cityName={position.cityName} />
+          {activeSection === 'home' && (
+            <div key="skeleton-grid" className="content-grid" style={{ marginTop: 'var(--sp-4)' }}>
+              <SkeletonDashboard />
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <Hero cityName={position.cityName} />
 
       {activeSection === 'home' && (
         <AppControls
@@ -441,47 +438,70 @@ export default function App() {
 
       {error && <p className="error-banner">{error}</p>}
 
-      {activeSection === 'home' && current && (
-        <div className="content-grid">
-          <Dashboard
-            cityName={position.cityName}
-            current={current}
-            trend={trend}
-            cityComparisons={cityComparisons}
-            timeRange={timeRange}
-            onTimeRangeChange={setTimeRange}
-            lastUpdated={lastUpdated}
-            isRefreshing={isRefreshing}
-            confidenceScore={confidenceScore}
-            dataCompleteness={dataCompleteness}
-          />
+      {aqiData?.isFallback && (
+        <div className="warning-banner" role="status">
+          <p>
+            ⚠️ <strong>Showing cached data:</strong> We couldn't retrieve live air quality data right now (you may be offline or the server could be down). Showing last known reading from {lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : 'cache'}.
+          </p>
+        </div>
+      )}
 
-          <LocationMap
-            center={position}
-            nearbyPoints={nearbyPoints}
-            confidenceScore={confidenceScore}
-            windData={windData}
-          />
+      {activeSection === 'home' && (
+        <div key="dashboard-grid" className="content-grid">
+          {current ? (
+            <>
+              <ErrorBoundary>
+                <Dashboard
+                  cityName={position.cityName}
+                  current={current}
+                  trend={trend}
+                  cityComparisons={cityComparisons}
+                  timeRange={timeRange}
+                  onTimeRangeChange={setTimeRange}
+                  lastUpdated={lastUpdated}
+                  isRefreshing={isRefreshing}
+                  confidenceScore={confidenceScore}
+                  dataCompleteness={dataCompleteness}
+                  isFallback={aqiData?.isFallback}
+                />
+              </ErrorBoundary>
 
-          <AlertsPanel
-            cityName={position.cityName}
-            current={current}
-            confidenceScore={confidenceScore}
-            dataCompleteness={dataCompleteness}
-            exposureEstimate={exposureEstimate}
-          />
+              <LocationMap
+                center={position}
+                nearbyPoints={nearbyPoints}
+                confidenceScore={confidenceScore}
+                windData={windData}
+              />
 
-          <HealthAdvisory />
+              <AlertsPanel
+                cityName={position.cityName}
+                current={current}
+                confidenceScore={confidenceScore}
+                dataCompleteness={dataCompleteness}
+                exposureEstimate={exposureEstimate}
+              />
 
-          <SolutionsAwareness />
+              <HealthAdvisory />
 
-          <AnalyticsInsights
-            analytics={analytics}
-            trend={trend}
-            timeRange={timeRange}
-          />
+              <SolutionsAwareness />
 
-          <ScenarioSimulator current={current} />
+              <AnalyticsInsights
+                analytics={analytics}
+                trend={trend}
+                timeRange={timeRange}
+              />
+
+              <ScenarioSimulator current={current} />
+            </>
+          ) : (
+            <ErrorBoundary>
+              <Dashboard
+                cityName={position.cityName}
+                current={null}
+                isFallback={false}
+              />
+            </ErrorBoundary>
+          )}
         </div>
       )}
 
@@ -511,6 +531,8 @@ export default function App() {
       )}
 
       <Footer />
+        </>
+      )}
     </main>
   );
 }

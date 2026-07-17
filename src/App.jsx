@@ -16,6 +16,7 @@ import LocationSearch from "./components/LocationSearch";
 import SkeletonDashboard from "./components/SkeletonDashboard";
 import { CITY_COORDINATES } from "./constants/cities";
 import HotspotScoutGame from "./components/HotspotScoutGame";
+import ErrorBoundary from "./components/ErrorBoundary";
 import {
   estimateWeeklyMonthlyAverages,
   fetchAirQualityByCoords,

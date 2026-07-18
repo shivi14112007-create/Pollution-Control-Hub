@@ -22,8 +22,9 @@ import {
   fetchAirQualityByCoords,
   fetchCityComparisons,
   estimateExposureTime,
-  fetchWindData,
-} from "./services/airQualityService";
+  fetchWindData
+} from './services/airQualityService';
+import { eventBus } from './core/events';
 
 const DEFAULT_POSITION = {
   lat: 28.6139,
@@ -53,7 +54,6 @@ function Hero({ cityName }) {
 function AppControls({
   selectedCity,
   onCityChange,
-  onRefresh,
   isRefreshing,
   refreshCountdown,
   lastUpdated,
@@ -98,9 +98,7 @@ function AppControls({
       </div>
 
       <div className="control-group actions">
-        <button type="button" onClick={onRefresh} disabled={isRefreshing}>
-          Refresh Now
-        </button>
+        <button type="button" onClick={() => eventBus.emit('FORCE_REFRESH')} disabled={isRefreshing}>Refresh Now</button>
         <small>
           Last updated:{" "}
           {lastUpdated
@@ -112,7 +110,7 @@ function AppControls({
   );
 }
 
-function SectionNav({ activeSection, onSectionChange, theme, onToggleTheme }) {
+function SectionNav({ activeSection, onSectionChange, theme }) {
   const sections = [
     { id: "home", label: "Home" },
     { id: "quiz", label: "Quiz" },
@@ -141,7 +139,7 @@ function SectionNav({ activeSection, onSectionChange, theme, onToggleTheme }) {
         <button
           type="button"
           className={`theme-toggle-inline ${theme === "dark" ? "dark" : ""}`}
-          onClick={onToggleTheme}
+          onClick={() => eventBus.emit('TOGGLE_THEME')}
           aria-label="Toggle Theme"
         >
           <span className="toggle-thumb">
@@ -451,15 +449,20 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    eventBus.on('TOGGLE_THEME', toggleTheme);
+    eventBus.on('FORCE_REFRESH', refreshNow);
+
+    return () => {
+      eventBus.off('TOGGLE_THEME', toggleTheme);
+      eventBus.off('FORCE_REFRESH', refreshNow);
+    };
+  }, [toggleTheme, refreshNow]);
+
   return (
     <main className="app-shell">
       {/* 1. Structural fix: Renders the navigation element at the very top */}
-      <SectionNav
-        activeSection={activeSection}
-        onSectionChange={setActiveSection}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-      />
+      <SectionNav activeSection={activeSection} onSectionChange={setActiveSection} theme={theme} />
 
       {loading && !error ? (
         <>
@@ -483,16 +486,25 @@ export default function App() {
         <>
           <Hero cityName={position.cityName} />
 
-          {activeSection === "home" && (
-            <AppControls
-              selectedCity={selectedCity}
-              onCityChange={handleLocationSelected}
-              onRefresh={refreshNow}
-              isRefreshing={isRefreshing}
-              refreshCountdown={refreshCountdown}
-              lastUpdated={lastUpdated}
-            />
-          )}
+      {activeSection === 'home' && (
+        <AppControls
+          selectedCity={selectedCity}
+          onCityChange={handleLocationSelected}
+
+          isRefreshing={isRefreshing}
+          refreshCountdown={refreshCountdown}
+          lastUpdated={lastUpdated}
+        />
+      )}
+
+      {locationNotice && selectedCity === 'auto' && (
+        <div className="location-notice" role="status">
+          <p>{locationNotice}</p>
+          <button type="button" onClick={() => setLocationNotice('')}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
           {locationNotice && selectedCity === "auto" && (
             <div className="location-notice" role="status">

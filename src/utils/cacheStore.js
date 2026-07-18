@@ -104,5 +104,3 @@ export const cacheStore = {
     return promise;
   }
 };
-};
-};

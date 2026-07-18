@@ -1,26 +1,39 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { cacheStore } from '../utils/cacheStore';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { cacheStore } from "../utils/cacheStore";
 
+/**
+ * Custom hook for Stale-While-Revalidate data fetching.
+ * Handles automatic caching, request deduplication, and graceful error tracking.
+ * * @param {string} key - Unique identifier/URL for the API request.
+ * @param {Function} fetcher - Asynchronous function tasked with pulling data.
+ * @param {Object} options - Configuration adjustments like Cache Time to Live (ttl).
+ */
 export function useSWR(key, fetcher, { ttl = 5 * 60 * 1000 } = {}) {
-  // Note: cacheStore.get is async, so this will initially be undefined/Promise.
-  // The useEffect below will correctly load the data from the cache on mount.
-  const getInitialData = () => undefined; 
-  
+  // Initial state based on synchronous cache read
+  const getInitialData = () => (key ? cacheStore.get(key)?.data : undefined);
+
   const [data, setData] = useState(getInitialData);
   const [error, setError] = useState(null);
-  const [isValidating, setIsValidating] = useState(() => !!key);
+  const [isValidating, setIsValidating] = useState(
+    () => !getInitialData() && !!key,
+  );
   const [currentKey, setCurrentKey] = useState(key);
 
+  // Keep fetcher mutable using a Ref to ensure we always call the latest instance
+  // without triggering structural hook updates.
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
-  
-  // Handle key changes synchronously to avoid flash of old data
+
+  // Handle key changes synchronously to avoid flash of old cached data
   const isKeyChanged = key !== currentKey;
-  // Derive the display values immediately so we don't show old data
-  // while React is processing the state update
+
+  // Derive the display values immediately so we don't show stale information
+  // while React is actively processing background state updates
   const displayData = isKeyChanged ? getInitialData() : data;
   const displayError = isKeyChanged ? null : error;
-  const displayIsValidating = isKeyChanged ? (!!key) : isValidating;
+  const displayIsValidating = isKeyChanged
+    ? !getInitialData() && !!key
+    : isValidating;
 
   if (isKeyChanged) {
     setCurrentKey(key);
@@ -29,62 +42,68 @@ export function useSWR(key, fetcher, { ttl = 5 * 60 * 1000 } = {}) {
     setIsValidating(!!key);
   }
 
-  // We use a ref to track whether the component is currently mounted
-  const isMountedRef = useRef(true);
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false; // Set to false when tab switches (unmounts)
-    };
-  }, []);
+  // Asynchronous revalidation executor
+  const revalidate = useCallback(
+    async (force = false) => {
+      if (!key) return;
 
-  const revalidate = useCallback(async (force = false) => {
-    if (!key) return;
-
-    // FIX 1: Added 'await' so it checks the actual boolean result instead of a Promise object
-    const isStale = await cacheStore.isStale(key, ttl);
-    
-    if (!force && !isStale) {
-      const cached = await cacheStore.get(key);
-      if (cached && isMountedRef.current) {
-        setData(cached.data);
-        setIsValidating(false);
+      const isStale = cacheStore.isStale(key, ttl);
+      if (!force && !isStale) {
+        const cached = cacheStore.get(key);
+        if (cached) {
+          // Use functional state updates to completely eliminate the need to track
+          // 'data' inside this array, breaking part of the infinite circular loops.
+          setData((prevData) =>
+            cached.data !== prevData ? cached.data : prevData,
+          );
+        }
+        return;
       }
-      return;
-    }
 
-    if (isMountedRef.current) setIsValidating(true);
-    
-    try {
-      const newData = await cacheStore.deduplicate(key, () => fetcherRef.current());
-      
-      // FIX 2: Only update state if the user hasn't already switched tabs away
-      if (isMountedRef.current) {
+      setIsValidating(true);
+      try {
+        const newData = await cacheStore.deduplicate(key, () =>
+          fetcherRef.current(),
+        );
         setData(newData);
-        setError(null);
-      }
-    } catch (err) {
-      if (err.name !== 'AbortError' && isMountedRef.current) {
-        setError(err);
-      }
-    } finally {
-      if (isMountedRef.current) {
+        setError(null); // Clear errors instantly upon a successful data fetch
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          // Captures geolocation block or backend fetch exceptions
+          // allowing the UI to adapt dynamically.
+          setError(err);
+        }
+      } finally {
         setIsValidating(false);
       }
-    }
-  }, [key, ttl]);
+    },
+    // Extracted 'displayData' completely from here to prevent the function
+    // memory reference from changing dynamically on every UI update.
+    [key, ttl],
+  );
 
-  // Revalidate on mount or key change
+  // FIX: Storing 'revalidate' inside a persistent Ref pointer ensures the
+  // downstream useEffect can safely target execution without triggering a 42-count cycle.
+  const revalidateRef = useRef(revalidate);
+  revalidateRef.current = revalidate;
+
+  // Revalidate safely on initial component mount or when the unique identifier key changes.
+  // When a user successfully enables location, the key changes, and this fires cleanly!
   useEffect(() => {
-    revalidate();
-  }, [revalidate]);
+    revalidateRef.current();
+  }, [key]);
 
-  // Force revalidation
+  // Force revalidation runner (ideal for manual 'Refresh' buttons)
   const mutate = useCallback(async () => {
     if (!key) return;
     await cacheStore.invalidate(key);
     await revalidate(true);
   }, [key, revalidate]);
 
-  return { data: displayData, error: displayError, isValidating: displayIsValidating, mutate };
+  return {
+    data: displayData,
+    error: displayError,
+    isValidating: displayIsValidating,
+    mutate,
+  };
 }

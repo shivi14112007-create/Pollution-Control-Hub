@@ -92,7 +92,12 @@ test.describe('Section navigation', () => {
     }
     const quizBtn = mockPage.getByRole('button', { name: 'Quiz', exact: true });
     await quizBtn.click();
-    await expect(quizBtn).toHaveClass(/active/);
+    
+    if (isMobile) {
+      await mockPage.locator('.hamburger-btn').click();
+    }
+    const newQuizBtn = mockPage.getByRole('button', { name: 'Quiz', exact: true });
+    await expect(newQuizBtn).toHaveClass(/active/);
   });
 
   test('navigating back to Home re-renders the dashboard', async ({ mockPage, isMobile }) => {
